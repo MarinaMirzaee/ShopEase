@@ -1,17 +1,33 @@
-import { useMemo, useState } from "react";
-import ProductList from "./components/ProductList";
-import SearchBar from "./components/SearchBar";
-import CategoryFilter from "./components/CategoryFilter";
+import { useEffect, useMemo, useState } from "react";
+import Home from "./pages/Home";
 import products from "./data/products";
 
+// Categories never change, so they are created once outside the component
 const categories = [
   "All",
   ...new Set(products.map((product) => product.category)),
 ];
 
 function App() {
+  const [cartItems, setCartItems] = useState(() => {
+    try {
+      const savedCart = localStorage.getItem("shopease-cart");
+      return savedCart ? JSON.parse(savedCart) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("shopease-cart", JSON.stringify(cartItems));
+    } catch {
+      // The app still works if localStorage is unavailable
+    }
+  }, [cartItems]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -24,25 +40,49 @@ function App() {
     });
   }, [search, selectedCategory]);
 
-  function handleAdd(product) {
-    console.log("Added:", product.name);
+  function addToCart(product) {
+    setCartItems((currentItems) => {
+      const existingItem = currentItems.find((item) => item.id === product.id);
+      if (existingItem) {
+        return currentItems.map((item) =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item,
+        );
+      }
+      return [...currentItems, { ...product, quantity: 1 }];
+    });
+  }
+
+  function changeQuantity(id, amount) {
+    setCartItems((currentItems) =>
+      currentItems
+        .map((item) =>
+          item.id === id ? { ...item, quantity: item.quantity + amount } : item,
+        )
+        .filter((item) => item.quantity > 0),
+    );
+  }
+
+  function removeFromCart(id) {
+    setCartItems((currentItems) =>
+      currentItems.filter((item) => item.id !== id),
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <h1 className="mb-8 text-3xl font-bold text-purple-600">ShopEase</h1>
-
-      <div className="mb-6 grid gap-4 sm:grid-cols-2">
-        <SearchBar search={search} onSearchChange={setSearch} />
-        <CategoryFilter
-          categories={categories}
-          selectedCategory={selectedCategory}
-          onCategoryChange={setSelectedCategory}
-        />
-      </div>
-
-      <ProductList products={filteredProducts} onAddToCart={handleAdd} />
-    </div>
+    <Home
+      products={filteredProducts}
+      categories={categories}
+      cartItems={cartItems}
+      search={search}
+      selectedCategory={selectedCategory}
+      onSearchChange={setSearch}
+      onCategoryChange={setSelectedCategory}
+      onAddToCart={addToCart}
+      onQuantityChange={changeQuantity}
+      onRemove={removeFromCart}
+    />
   );
 }
 
